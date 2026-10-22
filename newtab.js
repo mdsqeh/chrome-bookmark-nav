@@ -163,18 +163,46 @@ function makeSection(titleText, bookmarks, iconText = '▦', extraClass = '') {
   section.append(head, grid);
   return section;
 }
-function render() {
+function filteredBookmarks() {
   const normalized = query.trim().toLocaleLowerCase();
-  let filtered = allBookmarks.filter(b => {
+  const list = allBookmarks.filter(b => {
     const folderMatch = activeFolder === '__all__' || b.folderId === activeFolder;
     const searchMatch = !normalized || `${b.title} ${b.url} ${b.folderName}`.toLocaleLowerCase().includes(normalized);
     return folderMatch && searchMatch;
   });
-  filtered.sort(sortMode === 'name' ? (a, b) => a.title.localeCompare(b.title, 'zh-CN') : usageSort);
+  list.sort(sortMode === 'name' ? (a, b) => a.title.localeCompare(b.title, 'zh-CN') : usageSort);
+  return list;
+}
+function openInNewTab(url) {
+  if (globalThis.chrome?.tabs?.create) chrome.tabs.create({ url });
+  else window.open(url, '_blank', 'noopener');
+}
+function searchOnGoogle(value) {
+  const term = (value || '').trim();
+  if (!term) return;
+  openInNewTab(`https://www.google.com/search?q=${encodeURIComponent(term)}`);
+}
+function makeSearchAction(term) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'search-action';
+  const label = document.createElement('span');
+  label.append('在 Google 中搜索 “');
+  const keyword = document.createElement('strong'); keyword.textContent = term;
+  label.append(keyword, '”');
+  const hint = document.createElement('span'); hint.className = 'search-action-hint'; hint.textContent = '回车';
+  button.append(label, hint);
+  button.addEventListener('click', () => searchOnGoogle(term));
+  return button;
+}
+function render() {
+  const normalized = query.trim().toLocaleLowerCase();
+  const filtered = filteredBookmarks();
   results.innerHTML = '';
   results.classList.toggle('animate', !hasRendered);
   hasRendered = true;
   $('#clearBtn').hidden = !query;
+  if (normalized) results.append(makeSearchAction(query.trim()));
   if (!filtered.length) {
     const empty = document.createElement('div'); empty.className = 'empty';
     const strong = document.createElement('strong'); strong.textContent = normalized ? '没有找到匹配的书签' : '这个分类暂时没有书签';
@@ -209,6 +237,11 @@ function render() {
   }
 }
 searchInput.addEventListener('input', () => { query = searchInput.value; render(); });
+searchInput.addEventListener('keydown', event => {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  searchOnGoogle(query);
+});
 $('#clearBtn').addEventListener('click', () => { searchInput.value = ''; query = ''; render(); searchInput.focus(); });
 $('#refreshBtn').addEventListener('click', init);
 $('#sortSelect').addEventListener('change', event => { sortMode = event.target.value; render(); });

@@ -208,6 +208,33 @@ body {
 
 .dot { height: 3px; width: 3px; background: #b8c0ce; border-radius: 50%; }
 
+/* ---------- 搜索结果上方的 Google 搜索入口 ---------- */
+
+.search-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 26px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s, color .18s;
+}
+
+.search-action:hover { border-color: #c9d4ff; color: var(--accent); }
+
+.search-action strong { font-weight: 700; }
+
+.search-action-hint { margin-left: auto; color: var(--muted-2); font-size: 11px; white-space: nowrap; }
+
 /* ---------- 工具条：分类与排序 ---------- */
 
 .content-toolbar {
@@ -595,6 +622,8 @@ footer {
   .section-count { background: #1b2236; color: #7d879e; }
 
   .bookmark-card:hover { border-color: #3b4670; }
+
+  .search-action:hover { border-color: #3b4670; }
 
   .favicon { box-shadow: none; }
 
