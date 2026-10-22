@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>我的书签导航</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark">N</div><div><h1>我的网址导航</h1><p id="subtitle">正在读取 Chrome 书签…</p></div></div>
+      <button id="refreshBtn" class="refresh" title="重新读取书签" aria-label="重新读取书签">↻</button>
+    </header>
+    <section class="hero">
+      <p class="eyebrow">YOUR PERSONAL WEB</p>
+      <h2>想去哪里？</h2>
+      <p class="hero-copy">搜索书签名称、网址或所在分类</p>
+      <label class="searchbox"><span class="search-icon">⌕</span><input id="searchInput" type="search" placeholder="搜索书签… 例如 GitHub、VPS、SEO" autocomplete="off"><kbd>/</kbd><button id="clearBtn" aria-label="清除搜索" hidden>×</button></label>
+      <div class="stats"><span id="bookmarkCount">0 个书签</span><span class="dot"></span><span id="folderCount">0 个分类</span><span class="dot"></span><span>自动同步</span></div>
+    </section>
+    <div class="content-toolbar"><nav id="categoryNav" class="category-nav" aria-label="书签分类"></nav><label class="sort-control"><span>排序</span><select id="sortSelect"><option value="usage">使用频率</option><option value="name">名称 A–Z</option></select></label></div>
+    <section id="results" class="results" aria-live="polite"></section>
+    <footer><span>书签直接读取自 Chrome，不会上传到服务器。</span><span>书签结构自动同步 · 使用频率统计本导航页的打开次数</span></footer>
+  </main>
+  <script src="newtab.js"></script>
+</body>
+</html>
