@@ -14,6 +14,10 @@ const PIN_GLYPH = '\u21e7';
 const FAVICON_TTL = 7 * 24 * 60 * 60 * 1000;
 const FAVICON_RETRY = 10 * 60 * 1000;
 const FAVICON_MAX = 400;
+const FAVICON_VERSION = 3;
+const FAVICON_MIN = 64;
+const BRAND_COLORS = ['#0f766e', '#0e7490', '#4338ca', '#7e22ce', '#b45309', '#be123c', '#15803d', '#475569'];
+const PIN_HOVER_DELAY = 2000;
 let favicons = {};
 const faviconJobs = new Map();
 let faviconSaveTimer = 0;
@@ -122,8 +126,10 @@ function recordUse(bookmark) {
 }
 // 图标按域名缓存为 dataURL：只下载一次，之后每次渲染和离线打开都走本地。
 function isFaviconFresh(entry) {
-  // 失败记录只压 10 分钟，避免离线时一次失败就一周不重试。
-  return Date.now() - (entry.ts || 0) < (entry.data ? FAVICON_TTL : FAVICON_RETRY);
+  if (entry.v !== FAVICON_VERSION) return false;
+  // 取到了图（哪怕偏小）缓存 7 天；完全失败只压 10 分钟，避免离线时一周不重试。
+  const ok = entry.data || entry.w > 0;
+  return Date.now() - (entry.ts || 0) < (ok ? FAVICON_TTL : FAVICON_RETRY);
 }
 function saveFavicons() {
   clearTimeout(faviconSaveTimer);
@@ -146,78 +152,117 @@ function pruneFavicons() {
   entries.sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
   for (const [domain] of entries.slice(0, entries.length - FAVICON_MAX)) delete favicons[domain];
 }
-function fetchFavicon(domain, url) {
+function blobToDataUrl(blob) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+// 读取源图真实宽度：小于阈值说明放大会糊，直接不用它。
+function imageWidth(data) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth || 0);
+    img.onerror = () => resolve(0);
+    img.src = data;
+  });
+}
+async function fetchFavicon(domain, url) {
   if (faviconJobs.has(domain)) return faviconJobs.get(domain);
-  const job = fetch(`https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(url)}&sz=64`)
-    .then(res => (res.ok ? res.blob() : null))
-    .then(blob => {
-      if (!blob || !blob.type.startsWith('image/') || blob.size > 96 * 1024) return null;
-      return new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    })
-    .catch(() => null)
-    .then(data => {
-      // 失败也记一条空缓存，避免每次按键都重试同一个域名。
-      favicons[domain] = { data, ts: Date.now() };
-      faviconJobs.delete(domain);
-      pruneFavicons();
-      saveFavicons();
-      return data;
-    });
+  const job = (async () => {
+    let data = null;
+    let width = 0;
+    try {
+      const res = await fetch(`https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(url)}&sz=128`);
+      const blob = res.ok ? await res.blob() : null;
+      if (blob && blob.type.startsWith('image/') && blob.size <= 96 * 1024) {
+        data = await blobToDataUrl(blob);
+        width = data ? await imageWidth(data) : 0;
+      }
+    } catch { /* 离线或网络失败：按失败记录，10 分钟后再试 */ }
+    // 小图不存 dataURL，省空间；渲染时改用「品牌色 + 首字母」。
+    favicons[domain] = { data: width >= FAVICON_MIN ? data : null, w: width, ts: Date.now(), v: FAVICON_VERSION };
+    faviconJobs.delete(domain);
+    pruneFavicons();
+    saveFavicons();
+    return favicons[domain];
+  })();
   faviconJobs.set(domain, job);
   return job;
+}
+function brandColor(domain) {
+  // FNV-1a：同一域名永远同色，且相邻域名不容易撞色。
+  let hash = 2166136261;
+  for (let i = 0; i < domain.length; i++) {
+    hash ^= domain.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return BRAND_COLORS[(hash >>> 0) % BRAND_COLORS.length];
 }
 function paintFavicon(icon, data) {
   const img = document.createElement('img');
   img.alt = ''; img.decoding = 'async'; img.src = data;
+  icon.style.background = '';
+  icon.style.color = '';
   icon.replaceChildren(img);
 }
+function paintInitial(icon, bookmark, domain) {
+  icon.textContent = (bookmark.title.trim()[0] || '•').toUpperCase();
+  icon.style.background = brandColor(domain);
+  icon.style.color = '#fff';
+}
 function makeFavicon(bookmark) {
+  const domain = domainOf(bookmark.url);
   const icon = document.createElement('span'); icon.className = 'favicon';
-  const entry = favicons[domainOf(bookmark.url)];
+  const entry = favicons[domain];
   if (entry && entry.data) paintFavicon(icon, entry.data);
-  else icon.textContent = (bookmark.title.trim()[0] || '•').toUpperCase();
+  else paintInitial(icon, bookmark, domain);
   if (!entry || !isFaviconFresh(entry)) {
-    fetchFavicon(domainOf(bookmark.url), bookmark.url).then(data => {
+    fetchFavicon(domain, bookmark.url).then(result => {
       // 渲染可能已经重建了卡片，旧节点直接丢弃。
-      if (data && icon.isConnected) paintFavicon(icon, data);
+      if (!icon.isConnected) return;
+      if (result.data) paintFavicon(icon, result.data);
+      // 取到了但太小：换成品牌色首字母；w 为 0 表示取图失败，保留现状。
+      else if (result.w > 0) paintInitial(icon, bookmark, domain);
     });
   }
   return icon;
 }
 function makeCard(bookmark, index) {
   const wrapper = document.createElement('div');
-  wrapper.className = 'card';
+  wrapper.className = 'tile';
   wrapper.style.setProperty('--i', index % 24);
   const a = document.createElement('a');
-  a.className = 'bookmark-card'; a.href = bookmark.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  a.className = 'tile-link'; a.href = bookmark.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
   a.title = `${bookmark.title}\n${bookmark.url}`;
   a.addEventListener('click', () => recordUse(bookmark));
   const icon = makeFavicon(bookmark);
-  const copy = document.createElement('span'); copy.className = 'card-copy';
-  const titleRow = document.createElement('span'); titleRow.className = 'card-title-row';
-  const title = document.createElement('span'); title.className = 'card-title'; title.textContent = bookmark.title;
-  const url = document.createElement('span'); url.className = 'card-url'; url.textContent = domainOf(bookmark.url);
-  titleRow.append(title);
-  const count = countFor(bookmark);
-  if (count > 0) {
-    const badge = document.createElement('span'); badge.className = 'usage-badge'; badge.textContent = `${count} 次`;
-    badge.title = '通过此导航页打开的次数'; titleRow.append(badge);
-  }
-  copy.append(titleRow, url); a.append(icon, copy);
+  const copy = document.createElement('span'); copy.className = 'tile-copy';
+  const title = document.createElement('span'); title.className = 'tile-name'; title.textContent = bookmark.title;
+  const url = document.createElement('span'); url.className = 'tile-host'; url.textContent = domainOf(bookmark.url);
+  copy.append(title, url);
+  a.append(icon, copy);
   const pin = document.createElement('button');
   pin.type = 'button';
   pin.textContent = PIN_GLYPH;
-  pin.className = `pin-btn${isPinned(bookmark) ? ' is-pinned' : ''}`;
+  pin.className = `tile-pin${isPinned(bookmark) ? ' is-pinned' : ''}`;
   const pinnedNow = isPinned(bookmark);
   pin.title = pinnedNow ? '取消置顶' : '置顶到顶部';
   pin.setAttribute('aria-label', `${pin.title}：${bookmark.title}`);
   pin.setAttribute('aria-pressed', String(pinnedNow));
   pin.addEventListener('click', () => togglePin(bookmark));
+  // 置顶按钮默认隐藏，悬停满 2 秒才出现，避免误触。
+  let hoverTimer = 0;
+  wrapper.addEventListener('mouseenter', () => {
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => wrapper.classList.add('pin-ready'), PIN_HOVER_DELAY);
+  });
+  wrapper.addEventListener('mouseleave', () => {
+    clearTimeout(hoverTimer);
+    wrapper.classList.remove('pin-ready');
+  });
   wrapper.append(a, pin);
   return wrapper;
 }
