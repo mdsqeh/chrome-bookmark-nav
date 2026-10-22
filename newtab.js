@@ -191,7 +191,8 @@ function makeSearchAction(term) {
   const keyword = document.createElement('strong'); keyword.textContent = term;
   label.append(keyword, '”');
   const hint = document.createElement('span'); hint.className = 'search-action-hint'; hint.textContent = '回车';
-  button.append(label, hint);
+  const icon = document.createElement('span'); icon.className = 'search-action-icon'; icon.textContent = 'G';
+  button.append(icon, label, hint);
   button.addEventListener('click', () => searchOnGoogle(term));
   return button;
 }
