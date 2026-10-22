@@ -11,6 +11,12 @@ let query = '';
 let sortMode = 'usage';
 let hasRendered = false;
 const PIN_GLYPH = '\u21e7';
+const FAVICON_TTL = 7 * 24 * 60 * 60 * 1000;
+const FAVICON_RETRY = 10 * 60 * 1000;
+const FAVICON_MAX = 400;
+let favicons = {};
+const faviconJobs = new Map();
+let faviconSaveTimer = 0;
 
 function safeUrl(raw) {
   try {
@@ -71,6 +77,7 @@ function init() {
     if (data) {
       usageCounts = data.usageCounts || {};
       pinnedUrls = new Set(Array.isArray(data.pinnedUrls) ? data.pinnedUrls : []);
+      favicons = data.favicons && typeof data.favicons === 'object' ? data.favicons : {};
     }
     // getTree 只接受一个回调参数，错误由 chrome.runtime.lastError 提供。
     try {
@@ -83,7 +90,7 @@ function init() {
     }
   };
   try {
-    chrome.storage.local.get({ usageCounts: {}, pinnedUrls: [] }, boot);
+    chrome.storage.local.get({ usageCounts: {}, pinnedUrls: [], favicons: {} }, boot);
   } catch (error) {
     reportError(error);
     boot();
@@ -113,6 +120,75 @@ function recordUse(bookmark) {
     render();
   });
 }
+// 图标按域名缓存为 dataURL：只下载一次，之后每次渲染和离线打开都走本地。
+function isFaviconFresh(entry) {
+  // 失败记录只压 10 分钟，避免离线时一次失败就一周不重试。
+  return Date.now() - (entry.ts || 0) < (entry.data ? FAVICON_TTL : FAVICON_RETRY);
+}
+function saveFavicons() {
+  clearTimeout(faviconSaveTimer);
+  faviconSaveTimer = setTimeout(() => {
+    // 多个新标签页会各自持有内存副本，写回前先合并，避免互相覆盖。
+    chrome.storage.local.get({ favicons: {} }, data => {
+      const merged = { ...data.favicons };
+      for (const [domain, entry] of Object.entries(favicons)) {
+        if (!merged[domain] || (entry.ts || 0) >= (merged[domain].ts || 0)) merged[domain] = entry;
+      }
+      favicons = merged;
+      pruneFavicons();
+      chrome.storage.local.set({ favicons });
+    });
+  }, 800);
+}
+function pruneFavicons() {
+  const entries = Object.entries(favicons);
+  if (entries.length <= FAVICON_MAX) return;
+  entries.sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
+  for (const [domain] of entries.slice(0, entries.length - FAVICON_MAX)) delete favicons[domain];
+}
+function fetchFavicon(domain, url) {
+  if (faviconJobs.has(domain)) return faviconJobs.get(domain);
+  const job = fetch(`https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(url)}&sz=64`)
+    .then(res => (res.ok ? res.blob() : null))
+    .then(blob => {
+      if (!blob || !blob.type.startsWith('image/') || blob.size > 96 * 1024) return null;
+      return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    })
+    .catch(() => null)
+    .then(data => {
+      // 失败也记一条空缓存，避免每次按键都重试同一个域名。
+      favicons[domain] = { data, ts: Date.now() };
+      faviconJobs.delete(domain);
+      pruneFavicons();
+      saveFavicons();
+      return data;
+    });
+  faviconJobs.set(domain, job);
+  return job;
+}
+function paintFavicon(icon, data) {
+  const img = document.createElement('img');
+  img.alt = ''; img.decoding = 'async'; img.src = data;
+  icon.replaceChildren(img);
+}
+function makeFavicon(bookmark) {
+  const icon = document.createElement('span'); icon.className = 'favicon';
+  const entry = favicons[domainOf(bookmark.url)];
+  if (entry && entry.data) paintFavicon(icon, entry.data);
+  else icon.textContent = (bookmark.title.trim()[0] || '•').toUpperCase();
+  if (!entry || !isFaviconFresh(entry)) {
+    fetchFavicon(domainOf(bookmark.url), bookmark.url).then(data => {
+      // 渲染可能已经重建了卡片，旧节点直接丢弃。
+      if (data && icon.isConnected) paintFavicon(icon, data);
+    });
+  }
+  return icon;
+}
 function makeCard(bookmark, index) {
   const wrapper = document.createElement('div');
   wrapper.className = 'card';
@@ -121,12 +197,7 @@ function makeCard(bookmark, index) {
   a.className = 'bookmark-card'; a.href = bookmark.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
   a.title = `${bookmark.title}\n${bookmark.url}`;
   a.addEventListener('click', () => recordUse(bookmark));
-  const icon = document.createElement('span'); icon.className = 'favicon';
-  const img = document.createElement('img');
-  img.alt = ''; img.loading = 'lazy';
-  img.src = `https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(bookmark.url)}&sz=64`;
-  img.onerror = () => { img.remove(); icon.textContent = (bookmark.title.trim()[0] || '•').toUpperCase(); };
-  icon.append(img);
+  const icon = makeFavicon(bookmark);
   const copy = document.createElement('span'); copy.className = 'card-copy';
   const titleRow = document.createElement('span'); titleRow.className = 'card-title-row';
   const title = document.createElement('span'); title.className = 'card-title'; title.textContent = bookmark.title;

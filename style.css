@@ -451,7 +451,9 @@ body {
 
 .bookmark-card:hover .favicon { transform: scale(1.06) rotate(-3deg); }
 
-.favicon img { width: 22px; height: 22px; object-fit: contain; }
+.favicon img { width: 22px; height: 22px; object-fit: contain; animation: fade-in .18s ease-out; }
+
+@keyframes fade-in { from { opacity: 0; } }
 
 .card-copy { min-width: 0; flex: 1; }
 

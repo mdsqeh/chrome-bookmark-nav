@@ -1,11 +1,15 @@
 {
   "manifest_version": 3,
   "name": "本地书签导航",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "将 Chrome 书签整理成可搜索的本地导航页，并统计通过导航页打开的次数。",
   "permissions": [
     "bookmarks",
     "storage"
+  ],
+  "host_permissions": [
+    "https://www.google.com/*",
+    "https://*.gstatic.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",
