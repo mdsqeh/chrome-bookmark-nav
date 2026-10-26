@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>我的书签导航</title>
+  <title>书签导航</title>
   <link rel="icon" href="icons/icon32.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 3.5h9a1 1 0 0 1 1 1v16.2l-5.5-3.6-5.5 3.6V4.5a1 1 0 0 1 1-1z" fill="currentColor"/></svg></div><div><h1>我的网址导航</h1><p id="subtitle">正在读取 Chrome 书签…</p></div></div>
+      <div class="brand"><div class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 3.5h9a1 1 0 0 1 1 1v16.2l-5.5-3.6-5.5 3.6V4.5a1 1 0 0 1 1-1z" fill="currentColor"/></svg></div><div><h1>书签导航</h1><p id="subtitle">正在读取 Chrome 书签…</p></div></div>
       <button id="refreshBtn" class="refresh" title="重新读取书签" aria-label="重新读取书签">↻</button>
     </header>
     <section class="hero">
       <p class="eyebrow">YOUR PERSONAL WEB</p>
-      <h2>想去哪里？</h2>
+      <!-- <h2>想去哪里？</h2> -->
       <p class="hero-copy">搜索书签名称、网址或分类，按回车用 Google 搜索</p>
       <label class="searchbox"><span class="search-icon">⌕</span><input id="searchInput" type="search" placeholder="搜索书签… 例如 GitHub、VPS、SEO" autocomplete="off" title="输入内容过滤书签，按回车用 Google 搜索"><kbd>/</kbd><button id="clearBtn" aria-label="清除搜索" hidden>×</button></label>
       <div class="stats"><span id="bookmarkCount">0 个书签</span><span class="dot"></span><span id="folderCount">0 个分类</span><span class="dot"></span><span>自动同步</span></div>
