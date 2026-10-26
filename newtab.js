@@ -17,10 +17,12 @@ const FAVICON_MAX = 400;
 const FAVICON_VERSION = 3;
 const FAVICON_MIN = 64;
 const BRAND_COLORS = ['#0f766e', '#0e7490', '#4338ca', '#7e22ce', '#b45309', '#be123c', '#15803d', '#475569'];
-const PIN_HOVER_DELAY = 2000;
+const PIN_HOVER_DELAY = 600;
+const RENDER_DELAY = 140;
 let favicons = {};
 const faviconJobs = new Map();
 let faviconSaveTimer = 0;
+let renderTimer = 0;
 
 function safeUrl(raw) {
   try {
@@ -36,7 +38,19 @@ function flatten(nodes, path = []) {
   for (const node of nodes || []) {
     if (node.url) {
       const url = safeUrl(node.url);
-      if (url) out.push({ id: node.id, title: node.title || domainOf(node.url), url: url.href, path, folderId: path.length ? path[path.length - 1].id : '__other__', folderName: path.length ? path[path.length - 1].title : '其他书签' });
+      if (url) {
+        const leaf = path.length ? path[path.length - 1] : null;
+        out.push({
+          id: node.id,
+          title: node.title || domainOf(node.url),
+          url: url.href,
+          path,
+          folderId: leaf ? leaf.id : '__other__',
+          folderName: leaf ? leaf.title : '其他书签',
+          // 完整层级路径，让搜索能命中父级文件夹名（例如「工作」下的「前端」）。
+          folderPath: path.map(p => p.title).join(' ')
+        });
+      }
     } else if (node.children) {
       const nextPath = node.id === '0' ? path : [...path, { id: node.id, title: node.title || '未命名文件夹' }];
       out.push(...flatten(node.children, nextPath));
@@ -63,6 +77,8 @@ function buildData(tree) {
     if (b.folderId !== '__other__') map.set(b.folderId, b.folderName);
   }
   folders = [...map.entries()].map(([id, title]) => ({ id, title })).sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+  // 当前选中的分类可能已被删除，回退到「全部书签」而不是留下一个空列表。
+  if (activeFolder !== '__all__' && !folders.some(f => f.id === activeFolder)) activeFolder = '__all__';
   $('#bookmarkCount').textContent = `${allBookmarks.length} 个书签`;
   $('#folderCount').textContent = `${folders.length} 个分类`;
   $('#subtitle').textContent = `已同步 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
@@ -82,6 +98,8 @@ function init() {
       usageCounts = data.usageCounts || {};
       pinnedUrls = new Set(Array.isArray(data.pinnedUrls) ? data.pinnedUrls : []);
       favicons = data.favicons && typeof data.favicons === 'object' ? data.favicons : {};
+      sortMode = data.sortMode === 'name' ? 'name' : 'usage';
+      $('#sortSelect').value = sortMode;
     }
     // getTree 只接受一个回调参数，错误由 chrome.runtime.lastError 提供。
     try {
@@ -94,7 +112,7 @@ function init() {
     }
   };
   try {
-    chrome.storage.local.get({ usageCounts: {}, pinnedUrls: [], favicons: {} }, boot);
+    chrome.storage.local.get({ usageCounts: {}, pinnedUrls: [], favicons: {}, sortMode: 'usage' }, boot);
   } catch (error) {
     reportError(error);
     boot();
@@ -119,10 +137,13 @@ function renderNav() {
 }
 function recordUse(bookmark) {
   usageCounts[bookmark.url] = countFor(bookmark) + 1;
-  chrome.storage.local.set({ usageCounts }, () => {
-    // Keep the page responsive; update visible ranking after the click is recorded.
-    render();
-  });
+  chrome.storage.local.set({ usageCounts });
+  // 名称排序下点击不改变顺序，没必要重建列表。
+  if (sortMode !== 'usage') return;
+  // 频率排序下顺序会变，重建但保持滚动位置，避免视口跳走。
+  const scrollY = window.scrollY;
+  render();
+  window.scrollTo(0, scrollY);
 }
 // 图标按域名缓存为 dataURL：只下载一次，之后每次渲染和离线打开都走本地。
 function isFaviconFresh(entry) {
@@ -283,7 +304,7 @@ function filteredBookmarks() {
   const normalized = query.trim().toLocaleLowerCase();
   const list = allBookmarks.filter(b => {
     const folderMatch = activeFolder === '__all__' || b.folderId === activeFolder;
-    const searchMatch = !normalized || `${b.title} ${b.url} ${b.folderName}`.toLocaleLowerCase().includes(normalized);
+    const searchMatch = !normalized || `${b.title} ${b.url} ${b.folderPath}`.toLocaleLowerCase().includes(normalized);
     return folderMatch && searchMatch;
   });
   list.sort(sortMode === 'name' ? (a, b) => a.title.localeCompare(b.title, 'zh-CN') : usageSort);
@@ -353,18 +374,31 @@ function render() {
     if (section) results.append(section);
   }
 }
-searchInput.addEventListener('input', () => { query = searchInput.value; render(); });
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(render, RENDER_DELAY);
+}
+searchInput.addEventListener('input', () => {
+  query = searchInput.value;
+  // 清除按钮要立刻响应，列表重建可以等一拍。
+  $('#clearBtn').hidden = !query;
+  scheduleRender();
+});
 searchInput.addEventListener('keydown', event => {
   if (event.key !== 'Enter') return;
   event.preventDefault();
   searchOnGoogle(query);
 });
-$('#clearBtn').addEventListener('click', () => { searchInput.value = ''; query = ''; render(); searchInput.focus(); });
+$('#clearBtn').addEventListener('click', () => { clearTimeout(renderTimer); searchInput.value = ''; query = ''; render(); searchInput.focus(); });
 $('#refreshBtn').addEventListener('click', init);
-$('#sortSelect').addEventListener('change', event => { sortMode = event.target.value; render(); });
+$('#sortSelect').addEventListener('change', event => {
+  sortMode = event.target.value;
+  chrome.storage.local.set({ sortMode });
+  render();
+});
 document.addEventListener('keydown', event => {
   if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) { event.preventDefault(); searchInput.focus(); }
-  if (event.key === 'Escape') { searchInput.value = ''; query = ''; render(); searchInput.blur(); }
+  if (event.key === 'Escape') { clearTimeout(renderTimer); searchInput.value = ''; query = ''; render(); searchInput.blur(); }
 });
 if (globalThis.chrome?.bookmarks) {
   chrome.bookmarks.onCreated.addListener(init);

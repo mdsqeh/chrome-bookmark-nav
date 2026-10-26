@@ -328,7 +328,10 @@ body {
 
 /* ---------- 区块标题 ---------- */
 
-.section { margin: 0 0 34px; animation: rise .45s var(--ease) both; }
+.section { margin: 0 0 34px; }
+
+/* 入场动画只在首屏播放：搜索时重建列表不该让整屏重新淡入 */
+.results.animate .section { animation: rise .45s var(--ease) both; }
 
 .section-head { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
 
@@ -476,6 +479,15 @@ body {
   opacity: 1;
   visibility: visible;
   transform: none;
+}
+
+/* 触屏没有 hover，置顶按钮常显，否则该功能在手机 / 平板上完全用不了 */
+@media (hover: none) {
+  .tile-pin {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
 }
 
 .tile-pin:hover { background: var(--accent); color: var(--accent-soft); }
