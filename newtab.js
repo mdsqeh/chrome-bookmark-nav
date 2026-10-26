@@ -14,6 +14,9 @@ const PIN_GLYPH = '\u21e7';
 const FAVICON_TTL = 7 * 24 * 60 * 60 * 1000;
 const FAVICON_RETRY = 10 * 60 * 1000;
 const FAVICON_MAX = 400;
+// storage.local 配额是 10MB：按字节再设一道硬上限，避免写满后静默失败、每次开新标签页都重下。
+const FAVICON_BYTES_MAX = 4 * 1024 * 1024;
+const FAVICON_CONCURRENCY = 6;
 const FAVICON_VERSION = 3;
 const FAVICON_MIN = 64;
 const BRAND_COLORS = ['#0f766e', '#0e7490', '#4338ca', '#7e22ce', '#b45309', '#be123c', '#15803d', '#475569'];
@@ -23,6 +26,10 @@ let favicons = {};
 const faviconJobs = new Map();
 let faviconSaveTimer = 0;
 let renderTimer = 0;
+let pendingUse = Object.create(null);
+let usageFlushTimer = 0;
+let faviconActive = 0;
+const faviconQueue = [];
 
 function safeUrl(raw) {
   try {
@@ -32,6 +39,13 @@ function safeUrl(raw) {
 }
 function domainOf(raw) {
   try { return new URL(raw).hostname.replace(/^www\./, ''); } catch { return raw || ''; }
+}
+// 只保留协议 + 主机：图标请求绝不能带上书签的路径和查询参数（可能含 token）。
+function originOf(raw) {
+  try {
+    const url = new URL(raw);
+    return ['http:', 'https:'].includes(url.protocol) ? `${url.protocol}//${url.host}` : null;
+  } catch { return null; }
 }
 function flatten(nodes, path = []) {
   const out = [];
@@ -145,13 +159,34 @@ function renderNav() {
 }
 function recordUse(bookmark) {
   usageCounts[bookmark.url] = countFor(bookmark) + 1;
-  chrome.storage.local.set({ usageCounts });
+  pendingUse[bookmark.url] = (pendingUse[bookmark.url] || 0) + 1;
+  scheduleUsageFlush();
   // 名称排序下点击不改变顺序，没必要重建列表。
   if (sortMode !== 'usage') return;
   // 频率排序下顺序会变，重建但保持滚动位置，避免视口跳走。
   const scrollY = window.scrollY;
   render();
   window.scrollTo(0, scrollY);
+}
+// 计数落盘：先读最新值再叠加本次增量。直接回写内存快照会让同时开着的多个
+// 新标签页互相覆盖，把对方的点击吃掉。
+function scheduleUsageFlush() {
+  clearTimeout(usageFlushTimer);
+  usageFlushTimer = setTimeout(() => {
+    const batch = pendingUse;
+    pendingUse = Object.create(null);
+    chrome.storage.local.get({ usageCounts: {} }, data => {
+      const latest = { ...(data.usageCounts || {}) };
+      for (const [url, delta] of Object.entries(batch)) latest[url] = Number(latest[url] || 0) + delta;
+      usageCounts = latest;
+      chrome.storage.local.set({ usageCounts: latest }, () => { void chrome.runtime.lastError; });
+    });
+  }, 400);
+}
+function sameCounts(a, b) {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every(key => Number(a[key] || 0) === Number(b[key] || 0));
 }
 // 图标按域名缓存为 dataURL：只下载一次，之后每次渲染和离线打开都走本地。
 function isFaviconFresh(entry) {
@@ -177,9 +212,18 @@ function saveFavicons() {
 }
 function pruneFavicons() {
   const entries = Object.entries(favicons);
-  if (entries.length <= FAVICON_MAX) return;
+  let bytes = 0;
+  for (const [, entry] of entries) bytes += entry.data ? entry.data.length : 0;
+  if (entries.length <= FAVICON_MAX && bytes <= FAVICON_BYTES_MAX) return;
+  // 按时间从旧到新淘汰，直到条数和字节数都回到预算内。
   entries.sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
-  for (const [domain] of entries.slice(0, entries.length - FAVICON_MAX)) delete favicons[domain];
+  let count = entries.length;
+  for (const [domain, entry] of entries) {
+    if (count <= FAVICON_MAX && bytes <= FAVICON_BYTES_MAX) break;
+    delete favicons[domain];
+    count -= 1;
+    bytes -= entry.data ? entry.data.length : 0;
+  }
 }
 function blobToDataUrl(blob) {
   return new Promise(resolve => {
@@ -198,21 +242,45 @@ function imageWidth(data) {
     img.src = data;
   });
 }
+// 同时最多 6 个图标请求：首次安装或缓存过期时可能上百个域名一起排队，
+// 不限并发会把网络和首屏渲染都拖住。
+function pumpFaviconQueue() {
+  while (faviconActive < FAVICON_CONCURRENCY && faviconQueue.length) {
+    const task = faviconQueue.shift();
+    faviconActive += 1;
+    Promise.resolve().then(task).catch(() => {}).finally(() => {
+      faviconActive -= 1;
+      pumpFaviconQueue();
+    });
+  }
+}
+function downloadFavicon(origin) {
+  return new Promise(resolve => {
+    faviconQueue.push(async () => {
+      let data = null;
+      let width = 0;
+      try {
+        const res = await fetch(`https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(origin)}&sz=128`);
+        const blob = res.ok ? await res.blob() : null;
+        if (blob && blob.type.startsWith('image/') && blob.size <= 96 * 1024) {
+          data = await blobToDataUrl(blob);
+          width = data ? await imageWidth(data) : 0;
+        }
+      } catch { /* 网络失败按失败记录，10 分钟后再试 */ }
+      resolve({ data, width });
+    });
+    pumpFaviconQueue();
+  });
+}
 async function fetchFavicon(domain, url) {
   if (faviconJobs.has(domain)) return faviconJobs.get(domain);
   const job = (async () => {
-    let data = null;
-    let width = 0;
-    try {
-      const res = await fetch(`https://www.google.com/s2/favicons?domain_url=${encodeURIComponent(url)}&sz=128`);
-      const blob = res.ok ? await res.blob() : null;
-      if (blob && blob.type.startsWith('image/') && blob.size <= 96 * 1024) {
-        data = await blobToDataUrl(blob);
-        width = data ? await imageWidth(data) : 0;
-      }
-    } catch { /* 离线或网络失败：按失败记录，10 分钟后再试 */ }
+    const origin = originOf(url);
+    let result = { data: null, width: 0 };
+    // 离线时直接记失败，别把每次开新标签页都变成一轮必然超时的请求。
+    if (origin && navigator.onLine !== false) result = await downloadFavicon(origin);
     // 小图不存 dataURL，省空间；渲染时改用「品牌色 + 首字母」。
-    favicons[domain] = { data: width >= FAVICON_MIN ? data : null, w: width, ts: Date.now(), v: FAVICON_VERSION };
+    favicons[domain] = { data: result.width >= FAVICON_MIN ? result.data : null, w: result.width, ts: Date.now(), v: FAVICON_VERSION };
     faviconJobs.delete(domain);
     pruneFavicons();
     saveFavicons();
@@ -415,5 +483,15 @@ if (globalThis.chrome?.bookmarks) {
   chrome.bookmarks.onMoved.addListener(init);
   chrome.bookmarks.onChildrenReordered.addListener(init);
   chrome.bookmarks.onImportEnded.addListener(init);
+}
+// 其它标签页写入计数后同步过来；本页还有待落盘增量时不覆盖，避免显示回退。
+if (globalThis.chrome?.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.usageCounts) return;
+    const next = changes.usageCounts.newValue || {};
+    if (Object.keys(pendingUse).length || sameCounts(next, usageCounts)) return;
+    usageCounts = next;
+    render();
+  });
 }
 init();
