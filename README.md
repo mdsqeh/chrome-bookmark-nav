@@ -4,7 +4,7 @@
 
 ## 安装步骤（Windows / Chrome）
 
-1. 解压 `chrome-bookmark-nav.zip` 到一个固定目录，例如 `D:\Tools\chrome-bookmark-nav`。不要在安装后移动或删除该目录。
+1. 把仓库克隆或下载到本地一个固定目录，例如 `git clone https://github.com/mdsqeh/chrome-bookmark-nav.git D:\Tools\chrome-bookmark-nav`。不要在安装后移动或删除该目录。
 2. 在 Chrome 地址栏打开 `chrome://extensions/`。
 3. 打开右上角的「开发者模式」。
 4. 点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的 `chrome-bookmark-nav` 文件夹。

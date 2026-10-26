@@ -1,0 +1,13 @@
+# 工作区与编辑器元数据
+.workbuddy-ai/
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 打包产物
+*.zip
+node_modules/

@@ -1,12 +1,15 @@
 /* ==========================================================================
-   我的书签导航 · 样式表
+   书签导航 · 样式表
    --------------------------------------------------------------------------
-   配色：浅色为默认，深色由 prefers-color-scheme 自动切换。
+   配色：所有随主题变化的色值都收敛为 :root 里的语义变量。深色模式只覆盖
+        变量值，不再逐条重写选择器。
    断点：1080px（中桌面） / 820px（平板） / 560px（手机） / 400px（窄屏）
    ========================================================================== */
 
 :root {
   color-scheme: light;
+
+  /* 基础色板 */
   --bg: #f4f8f7;
   --bg-glow: rgba(13, 148, 136, .10);
   --card: #fff;
@@ -14,22 +17,71 @@
   --muted: #74827e;
   --muted-2: #97a4a0;
   --line: #e6ecea;
-  --line-strong: #d5e0dd;
   --fill: #f2f7f5;
   --accent: #0d9488;
-  --accent-2: #06b6d4;
   --accent-soft: #e6f7f5;
   --shadow: 0 8px 26px rgba(20, 48, 45, .06);
-  --shadow-lift: 0 20px 40px -18px rgba(15, 62, 58, .35);
   --ring: 0 0 0 4px rgba(13, 148, 136, .14);
-  --radius: 16px;
   --radius-sm: 12px;
   --ease: cubic-bezier(.16, .84, .36, 1);
+
+  /* 品牌与图标 */
+  --brand-grad: linear-gradient(145deg, #2dd4bf, #0e9488);
   --icon-bg: #f2f7f5;
   --icon-ink: #2f8f86;
-  --pin-ink: #a6b3b0;
+  --icon-shadow: 0 6px 16px rgba(20, 48, 45, .13);
+
+  /* 刷新按钮 */
+  --refresh-bg: rgba(255, 255, 255, .78);
+  --refresh-ink: #62716d;
+  --refresh-hover-bg: #fff;
+  --refresh-hover-line: #c9e9e4;
+
+  /* 搜索框 */
+  --input-bg: #fff;
+  --input-line: #e2eae7;
+  --input-focus-line: #7ed4ca;
+  --kbd-bg: #f7faf9;
+  --kbd-line: #e2e9e7;
+  --kbd-ink: #90a09a;
+  --clear-ink: #788680;
+
+  /* 排序下拉 */
+  --select-bg: #fff;
+  --select-line: #e0e8e5;
+  --select-ink: #44514e;
+  --select-arrow: #899791;
+
+  /* 分类按钮 */
+  --cat-bg: rgba(255, 255, 255, .72);
+  --cat-line: #e3eae7;
+  --cat-ink: #66736f;
+  --cat-hover-bg: #fff;
+  --cat-hover-line: #bfe3de;
+  --cat-active-line: #cfeae6;
+
+  /* 区块标题 */
+  --sec-icon-bg: #e2f6f3;
+  --sec-icon-ink: #1a8a80;
+  --count-bg: #ecf2f0;
+  --count-ink: #96a3a0;
+  --pin-sec-grad: linear-gradient(145deg, #d9f3ef, #bfe9e4);
+  --pin-sec-ink: #127d74;
+  --freq-grad: linear-gradient(145deg, #fff0d6, #ffe4b0);
+  --freq-ink: #b97912;
+
+  /* 磁贴与置顶 */
+  --tile-hover-line: var(--line);
   --pin-bg: #e6f7f5;
-  --pin-line: #cbeae6;
+  --action-hover-line: #a9dfd8;
+
+  /* 空状态与页脚 */
+  --empty-bg: rgba(255, 255, 255, .72);
+  --empty-line: #dae4e1;
+  --empty-ink: #7b8985;
+  --empty-strong: #35423f;
+  --footer-line: #e6ecea;
+
   --font: "Inter var", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
     "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
 }
@@ -74,7 +126,7 @@ body {
   height: 42px;
   width: 42px;
   border-radius: 14px;
-  background: linear-gradient(145deg, #2dd4bf, #0e9488);
+  background: var(--brand-grad);
   display: grid;
   place-items: center;
   color: #fff;
@@ -97,8 +149,8 @@ body {
   width: 39px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: rgba(255, 255, 255, .78);
-  color: #62716d;
+  background: var(--refresh-bg);
+  color: var(--refresh-ink);
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
@@ -106,9 +158,9 @@ body {
 }
 
 .refresh:hover {
-  background: #fff;
+  background: var(--refresh-hover-bg);
   color: var(--accent);
-  border-color: #c9e9e4;
+  border-color: var(--refresh-hover-line);
   transform: rotate(25deg);
 }
 
@@ -124,13 +176,6 @@ body {
   margin: 0 0 14px;
 }
 
-.hero h2 {
-  font-size: clamp(30px, 4vw, 42px);
-  letter-spacing: -1.8px;
-  margin: 0;
-  font-weight: 800;
-}
-
 .hero-copy { font-size: 14px; color: var(--muted); margin: 13px 0 27px; }
 
 .searchbox {
@@ -141,14 +186,14 @@ body {
   align-items: center;
   gap: 13px;
   padding: 0 17px;
-  background: #fff;
-  border: 1px solid #e2eae7;
+  background: var(--input-bg);
+  border: 1px solid var(--input-line);
   border-radius: 17px;
   box-shadow: 0 10px 28px rgba(20, 48, 45, .05);
   transition: border-color .2s, box-shadow .2s;
 }
 
-.searchbox:focus-within { border-color: #7ed4ca; box-shadow: var(--ring), 0 12px 30px rgba(20, 48, 45, .08); }
+.searchbox:focus-within { border-color: var(--input-focus-line); box-shadow: var(--ring), 0 12px 30px rgba(20, 48, 45, .08); }
 
 .search-icon { font-size: 26px; color: #86948f; transform: rotate(-20deg); }
 
@@ -168,9 +213,9 @@ body {
 .searchbox kbd {
   font-size: 11px;
   font-family: inherit;
-  border: 1px solid #e2e9e7;
-  background: #f7faf9;
-  color: #90a09a;
+  border: 1px solid var(--kbd-line);
+  background: var(--kbd-bg);
+  color: var(--kbd-ink);
   border-radius: 6px;
   padding: 4px 7px;
 }
@@ -184,7 +229,7 @@ body {
   justify-content: center;
   border: 0;
   background: transparent;
-  color: #788680;
+  color: var(--clear-ink);
   font-size: 21px;
   line-height: 1;
   padding: 2px 4px;
@@ -228,7 +273,7 @@ body {
   transition: border-color .18s, color .18s;
 }
 
-.search-action:hover { border-color: #a9dfd8; color: var(--accent); }
+.search-action:hover { border-color: var(--action-hover-line); color: var(--accent); }
 
 .search-action strong { font-weight: 700; }
 
@@ -285,9 +330,9 @@ body {
 
 .sort-control select {
   appearance: none;
-  border: 1px solid #e0e8e5;
-  background: #fff;
-  color: #44514e;
+  border: 1px solid var(--select-line);
+  background: var(--select-bg);
+  color: var(--select-ink);
   border-radius: 10px;
   padding: 9px 30px 9px 12px;
   font: inherit;
@@ -295,19 +340,19 @@ body {
   cursor: pointer;
   outline: none;
   background-image:
-    linear-gradient(45deg, transparent 50%, #899791 50%),
-    linear-gradient(135deg, #899791 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--select-arrow) 50%),
+    linear-gradient(135deg, var(--select-arrow) 50%, transparent 50%);
   background-position: calc(100% - 12px) 14px, calc(100% - 8px) 14px;
   background-size: 4px 4px, 4px 4px;
   background-repeat: no-repeat;
 }
 
-.sort-control select:focus { border-color: #8ed7cd; box-shadow: 0 0 0 3px rgba(13, 148, 136, .14); }
+.sort-control select:focus { border-color: var(--input-focus-line); box-shadow: 0 0 0 3px rgba(13, 148, 136, .14); }
 
 .category {
-  border: 1px solid #e3eae7;
-  background: rgba(255, 255, 255, .72);
-  color: #66736f;
+  border: 1px solid var(--cat-line);
+  background: var(--cat-bg);
+  color: var(--cat-ink);
   padding: 9px 15px;
   border-radius: 11px;
   font: inherit;
@@ -316,11 +361,11 @@ body {
   transition: color .16s, border-color .16s, background .16s, box-shadow .16s, transform .16s var(--ease);
 }
 
-.category:hover { border-color: #bfe3de; color: var(--accent); background: #fff; }
+.category:hover { border-color: var(--cat-hover-line); color: var(--accent); background: var(--cat-hover-bg); }
 
 .category.active {
   background: var(--accent-soft);
-  border-color: #cfeae6;
+  border-color: var(--cat-active-line);
   color: var(--accent);
   font-weight: 700;
   box-shadow: inset 0 0 0 1px rgba(13, 148, 136, .06);
@@ -340,9 +385,9 @@ body {
   width: 30px;
   display: grid;
   place-items: center;
-  background: #e2f6f3;
+  background: var(--sec-icon-bg);
   border-radius: 9px;
-  color: #1a8a80;
+  color: var(--sec-icon-ink);
   font-size: 15px;
 }
 
@@ -350,8 +395,8 @@ body {
 
 .section-count {
   font-size: 11px;
-  color: #96a3a0;
-  background: #ecf2f0;
+  color: var(--count-ink);
+  background: var(--count-bg);
   padding: 3px 7px;
   border-radius: 6px;
 }
@@ -384,7 +429,7 @@ body {
 .tile-link:hover,
 .tile-link:focus-visible {
   background: var(--card);
-  border-color: var(--line);
+  border-color: var(--tile-hover-line);
   box-shadow: var(--shadow);
   transform: translateY(-3px);
 }
@@ -410,7 +455,7 @@ body {
   font-weight: 800;
   font-size: 32px;
   line-height: 1;
-  box-shadow: 0 6px 16px rgba(20, 48, 45, .13);
+  box-shadow: var(--icon-shadow);
   transition: transform .18s var(--ease);
 }
 
@@ -449,7 +494,7 @@ body {
   text-overflow: ellipsis;
 }
 
-/* 置顶按钮：默认完全隐藏，悬停 2 秒才出现；已置顶的常显 */
+/* 置顶按钮：默认隐藏，悬停后由 JS 加 pin-ready 显示 */
 .tile-pin {
   position: absolute;
   top: 17px;
@@ -473,7 +518,7 @@ body {
   transition: opacity .16s, transform .16s, background .16s, color .16s;
 }
 
-/* 悬停 2 秒后由 JS 加上 pin-ready；移开立即收起。已置顶的也一样隐藏 */
+/* 悬停后由 JS 加上 pin-ready；移开立即收起 */
 .tile.pin-ready .tile-pin,
 .tile:focus-within .tile-pin {
   opacity: 1;
@@ -496,28 +541,24 @@ body {
 .tile .tile-pin.is-pinned { background: var(--accent); color: var(--accent-soft); }
 
 /* 置顶区块 */
-.pinned-section .section-icon { background: linear-gradient(145deg, #d9f3ef, #bfe9e4); color: #127d74; }
-
-@media (prefers-color-scheme: dark) {
-  .pinned-section .section-icon { background: linear-gradient(145deg, #12403c, #185651); color: #8fe3d9; }
-}
+.pinned-section .section-icon { background: var(--pin-sec-grad); color: var(--pin-sec-ink); }
 
 /* 常用书签区块 */
-.frequent-section .section-icon { background: linear-gradient(145deg, #fff0d6, #ffe4b0); color: #b97912; }
+.frequent-section .section-icon { background: var(--freq-grad); color: var(--freq-ink); }
 
 /* ---------- 空状态与页脚 ---------- */
 
 .empty {
   padding: 48px 20px;
   text-align: center;
-  background: rgba(255, 255, 255, .72);
-  border: 1px dashed #dae4e1;
+  background: var(--empty-bg);
+  border: 1px dashed var(--empty-line);
   border-radius: 16px;
-  color: #7b8985;
+  color: var(--empty-ink);
   font-size: 13px;
 }
 
-.empty strong { display: block; color: #35423f; font-size: 15px; margin-bottom: 8px; }
+.empty strong { display: block; color: var(--empty-strong); font-size: 15px; margin-bottom: 8px; }
 
 .empty span { display: block; }
 
@@ -528,12 +569,10 @@ footer {
   justify-content: space-between;
   gap: 15px;
   padding: 25px 0 30px;
-  border-top: 1px solid #e6ecea;
+  border-top: 1px solid var(--footer-line);
   color: var(--muted-2);
   font-size: 10px;
 }
-
-.hidden { display: none !important; }
 
 /* ---------- 动效 ---------- */
 
@@ -558,7 +597,6 @@ footer {
   .shell { width: calc(100% - 28px); }
   .topbar { height: 78px; }
   .hero { padding: 39px 0 26px; }
-  .hero h2 { font-size: 32px; }
   .bookmark-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 4px; }
   .tile-link { padding: 10px 4px 12px; border-radius: 16px; }
   .favicon { width: 64px; height: 64px; flex-basis: 64px; border-radius: 17px; font-size: 28px; }
@@ -576,11 +614,12 @@ footer {
   .searchbox kbd { display: none; }
 }
 
-/* ---------- 深色模式 ---------- */
+/* ---------- 深色模式：只覆盖变量，不重写选择器 ---------- */
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
+
     --bg: #0b1615;
     --bg-glow: rgba(45, 212, 191, .15);
     --card: #121d1c;
@@ -588,67 +627,61 @@ footer {
     --muted: #8fa09c;
     --muted-2: #7b8c88;
     --line: #21302d;
-    --line-strong: #2a3a37;
     --fill: #172321;
-    --icon-bg: #172321;
-    --icon-ink: #7fd8cf;
-    --pin-ink: #7e8f8b;
-    --pin-bg: #123230;
-    --pin-line: #1e4a45;
     --accent: #4fd1c5;
-    --accent-2: #22d3ee;
     --accent-soft: #123230;
     --shadow: 0 8px 26px rgba(0, 0, 0, .35);
-    --shadow-lift: 0 22px 42px -18px rgba(0, 0, 0, .72);
     --ring: 0 0 0 4px rgba(79, 209, 197, .20);
+
+    --brand-grad: linear-gradient(145deg, #2dd4bf, #0f766e);
+    --icon-bg: #172321;
+    --icon-ink: #7fd8cf;
+    --icon-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+
+    --refresh-bg: rgba(21, 27, 44, .85);
+    --refresh-ink: #97a8a4;
+    --refresh-hover-bg: #172321;
+    --refresh-hover-line: #2c4b47;
+
+    --input-bg: #121d1c;
+    --input-line: #243330;
+    --input-focus-line: #2f6f67;
+    --kbd-bg: #172321;
+    --kbd-line: #283833;
+    --kbd-ink: #8b9a96;
+    --clear-ink: #8b9a96;
+
+    --select-bg: #121d1c;
+    --select-line: #243330;
+    --select-ink: #cbd9d6;
+    --select-arrow: #7b8c88;
+
+    --cat-bg: rgba(21, 27, 44, .8);
+    --cat-line: #243330;
+    --cat-ink: #a3b5b1;
+    --cat-hover-bg: #172321;
+    --cat-hover-line: #33544f;
+    --cat-active-line: #2d5b55;
+
+    --sec-icon-bg: #123230;
+    --sec-icon-ink: #5ed3c7;
+    --count-bg: #172321;
+    --count-ink: #7b8c88;
+    --pin-sec-grad: linear-gradient(145deg, #12403c, #185651);
+    --pin-sec-ink: #8fe3d9;
+    --freq-grad: linear-gradient(145deg, #42351a, #5a4520);
+    --freq-ink: #f0c065;
+
+    --tile-hover-line: #2b4540;
+    --pin-bg: #123230;
+    --action-hover-line: #33544f;
+
+    --empty-bg: rgba(21, 27, 44, .7);
+    --empty-line: #283833;
+    --empty-ink: #8b9a96;
+    --empty-strong: #dcebe8;
+    --footer-line: #1c2a27;
   }
-
-  .brand-mark { background: linear-gradient(145deg, #2dd4bf, #0f766e); }
-
-  .refresh { background: rgba(21, 27, 44, .85); color: #97a8a4; }
-
-  .refresh:hover { background: #172321; color: var(--accent); border-color: #2c4b47; }
-
-  .searchbox { background: #121d1c; border-color: #243330; }
-
-  .searchbox:focus-within { border-color: #2f6f67; }
-
-  .searchbox kbd { background: #172321; border-color: #283833; color: #8b9a96; }
-
-  .searchbox button { color: #8b9a96; }
-
-  .sort-control select {
-    background-color: #121d1c;
-    border-color: #243330;
-    color: #cbd9d6;
-    background-image:
-      linear-gradient(45deg, transparent 50%, #7b8c88 50%),
-      linear-gradient(135deg, #7b8c88 50%, transparent 50%);
-  }
-
-  .category { background: rgba(21, 27, 44, .8); border-color: #243330; color: #a3b5b1; }
-
-  .category:hover { background: #172321; border-color: #33544f; }
-
-  .category.active { border-color: #2d5b55; }
-
-  .section-icon { background: #123230; color: #5ed3c7; }
-
-  .section-count { background: #172321; color: #7b8c88; }
-
-  .tile-link:hover { background: #121d1c; border-color: #2b4540; }
-
-  .search-action:hover { border-color: #33544f; }
-
-  .favicon { box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
-
-  .frequent-section .section-icon { background: linear-gradient(145deg, #42351a, #5a4520); color: #f0c065; }
-
-  .empty { background: rgba(21, 27, 44, .7); border-color: #283833; color: #8b9a96; }
-
-  .empty strong { color: #dcebe8; }
-
-  footer { border-top-color: #1c2a27; }
 }
 
 /* ---------- 减少动效 ---------- */

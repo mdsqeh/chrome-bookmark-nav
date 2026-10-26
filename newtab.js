@@ -84,7 +84,6 @@ function buildData(tree) {
   $('#subtitle').textContent = `已同步 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
   renderNav();
   render();
-  document.documentElement.dataset.bookmarkCount = allBookmarks.length;
 }
 function init() {
   if (!globalThis.chrome?.bookmarks) {
@@ -121,7 +120,16 @@ function init() {
 function reportError(error) {
   const message = error && error.message ? error.message : String(error || '未知错误');
   $('#subtitle').textContent = '读取失败';
-  results.innerHTML = `<div class="empty"><strong>读取 Chrome 书签失败</strong>${message}<small>可在新标签页按 F12 打开控制台查看完整错误。</small></div>`;
+  const box = document.createElement('div');
+  box.className = 'empty';
+  const strong = document.createElement('strong');
+  strong.textContent = '读取 Chrome 书签失败';
+  const detail = document.createElement('span');
+  detail.textContent = message;
+  const hint = document.createElement('small');
+  hint.textContent = '可在新标签页按 F12 打开控制台查看完整错误。';
+  box.append(strong, detail, hint);
+  results.replaceChildren(box);
 }
 function renderNav() {
   const items = [{ id: '__all__', title: '全部书签' }, ...folders];
